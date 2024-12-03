@@ -1,32 +1,26 @@
+from math import prod
 import re
 
 
 def day03(inp):
     data = ' '.join(inp.strip().splitlines())
 
-    part1 = 0
-    mul_matcher = re.compile(r'mul\((\d{1,3}),(\d{1,3})\)')
-    for x_str, y_str in mul_matcher.findall(data):
-        part1 += int(x_str) * int(y_str)
+    part1 = part2 = 0
+    all_matcher = re.compile(r"do\(\)|don't\(\)|mul\((\d{1,3}),(\d{1,3})\)")
+    enabled = True
+    for match in all_matcher.finditer(data):
+        if match.group() == 'do()':
+            # part 2
+            enabled = True
+        elif match.group() == "don't()":
+            # part 2
+            enabled = False
+        else:
+            contribution = prod(map(int, match.groups()))
+            part1 += contribution
+            if enabled:
+                part2 += contribution
 
-    part2 = 0
-    pieces = []
-    rest = data
-    while rest:
-        next_dont = rest.find("don't()")
-        if next_dont < 0:
-            pieces.append(rest)
-            break
-        pieces.append(rest[:next_dont])
-        rest = rest[next_dont + 4:]
-        next_do = rest.find("do()")
-        if next_do < 0:
-            break
-        rest = rest[next_do:]
-    data = ' '.join(pieces)
-    for x_str, y_str in mul_matcher.findall(data):
-        part2 += int(x_str) * int(y_str)
-        
     return part1, part2
 
 
