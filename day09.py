@@ -1,11 +1,12 @@
+from collections import deque
 from itertools import count
 
 
-def day09(inp, part1=True):
+def day09(inp):
     data = inp.strip()
 
     blocks = {}  # file_id -> (start, end)
-    gaps = {}  # gap_id -> (start, end)
+    gap_sizes = {}  # gap_start -> gap_size
     pos = 0
     it = iter(data)
     for file_id in count():
@@ -18,40 +19,34 @@ def day09(inp, part1=True):
         if gap_size < 0:
             # end of stream
             break
-        bounds = pos, pos + gap_size - 1  # inclusive
+        gap_sizes[pos] = gap_size
         pos += gap_size
-        gaps[file_id] = bounds
 
-    if part1:
-        poses = {
-            pos: file_id
-            for file_id, bounds in blocks.items()
-            for pos in range(bounds[0], bounds[1] + 1)
-        }
-        poses.update({
-            pos: None
-            for file_id, bounds in gaps.items()
-            for pos in range(bounds[0], bounds[1] + 1)
-        })
+    # part 1
+    file_poses = deque([
+        (pos, file_id)
+        for file_id, bounds in blocks.items()
+        for pos in range(bounds[0], bounds[1] + 1)
+    ])
+    gap_poses = (
+        pos
+        for start_pos, gap_size in gap_sizes.items()
+        for pos in range(start_pos, start_pos + gap_size)
+    )
+    # loop gap positions from the left
+    for gap_pos in gap_poses:
+        # loop file positions from the right
+        orig_pos, file_id = file_poses.pop()
+        if orig_pos < gap_pos:
+            # we're all out of gaps, undo this last pop
+            file_poses.append((orig_pos, file_id))
+            break
+        # put moved positions at the left of the deque for safe keeping
+        file_poses.appendleft((gap_pos, file_id))
 
-        for file_id in range(max(blocks), -1, -1):
-            bounds = blocks[file_id]
-            for pos in range(bounds[1], bounds[0] - 1, -1):
-                try:
-                    new_pos = min(item for item in poses.items() if item[1] is None)[0]
-                except ValueError:
-                    new_pos = float('inf')
-                if new_pos > pos:
-                    # we're done
-                    poses = {pos: val for pos, val in poses.items() if val is not None}
-                    result = sum(key * value for key, value in poses.items())
-                    return result
-
-                del poses[pos]
-                poses[new_pos] = file_id
+    part1 = sum(pos * file_id for pos, file_id in file_poses)
 
     # part 2
-    gap_sizes = {bounds[0]: bounds[1] - bounds[0] + 1 for bounds in gaps.values()}
     for file_id in range(max(blocks), 0, -1):
         bounds = blocks[file_id]
         file_size = bounds[1] - bounds[0] + 1
@@ -82,29 +77,17 @@ def day09(inp, part1=True):
             gap_sizes[leftover_gap_start] = leftover_gap_size
         del gap_sizes[matching_gap]
 
-        # add new gap and merge gaps around old position
-        gap_sizes[bounds[0]] = file_size
-        current_gap, *rest = sorted(gap_sizes)
-        current_gap_size = gap_sizes[current_gap]
-        for next_gap in rest:
-            if next_gap == current_gap + gap_sizes[current_gap]:
-                # merge
-                current_gap_size += gap_sizes[next_gap]
-                continue
-            gap_sizes[current_gap] = current_gap_size
-        gap_sizes[current_gap] = current_gap_size
-
-    poses = {
-        pos: file_id
+    part2 = sum(
+        pos * file_id
         for file_id, bounds in blocks.items()
         for pos in range(bounds[0], bounds[1] + 1)
-    }
-    result = sum(key * value for key, value in poses.items())
-    return result
+    )
+
+    return part1, part2
 
 
 if __name__ == "__main__":
     testinp = open('day09.testinp').read()
-    print(day09(testinp), day09(testinp, part1=False))
+    print(day09(testinp))
     inp = open('day09.inp').read()
-    print(day09(inp), day09(inp, part1=False))
+    print(day09(inp))
