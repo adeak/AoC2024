@@ -2,8 +2,6 @@ from heapq import heapify, heappop, heappush
 
 import numpy as np
 
-from day10 import get_neighbs
-
 
 def day16(inp):
     board = np.array([list(line) for line in inp.splitlines()])
