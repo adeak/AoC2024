@@ -51,4 +51,3 @@ if __name__ == "__main__":
     print(day18(testinp, size=7, part1_count=12))
     inp = open('day18.inp').read()
     print(day18(inp))
-    # 4,14 not the right answer
