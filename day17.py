@@ -1,7 +1,4 @@
-from itertools import count
-
-
-def day17(inp, only_part1=False):
+def day17(inp):
     register_block, program_line = inp.strip().split('\n\n')
 
     registers = [int(line.split()[-1]) for line in register_block.splitlines()]
@@ -52,44 +49,25 @@ def day17(inp, only_part1=False):
         cdv,
     ]
 
-    def execute_program(find_quine=False):
+    def execute_program(skip_jump=False):
         ip = 0
         while 0 <= ip < len(program) - 1:
             instr, op = program[ip], program[ip + 1]
             fun = instructions[instr]
             jmp_target = fun(op)
 
-            # early break for part 2
-            if find_quine and fun.__name__ == "out" and outputs != program[:len(outputs)]:
-                break
-
             # advance instruction pointer
-            ip = jmp_target if jmp_target is not None else ip + 2
+            if skip_jump:
+                ip += 2
+            else:
+                ip = jmp_target if jmp_target is not None else ip + 2
 
     # part 1: execute with given A value
     original_registers = registers.copy()
     execute_program()
     part1 = ','.join(map(str, outputs))
-    if only_part1:
-        return part1, None
 
-    # part 2: look for a quine (runs too long for production input)
-    for A_init in count(1):
-        registers = original_registers.copy()
-        registers[0] = A_init
-        outputs = []
-        execute_program(find_quine=True)
-        if outputs == program:
-            part2 = A_init
-            break
-
-    return part1, part2
-
-
-def day17_special(inp):
-    # hand-crafted part 2 for specific real input
-    program_line = inp.strip().split('\n\n')[-1]
-    program = list(map(int, program_line.split()[-1].split(',')))
+    # partially generalized hand-crafted part 2
 
     # The program looks something like this (your mileage may vary):
     #
@@ -116,48 +94,61 @@ def day17_special(inp):
     # recheck the output from the start (actually: end) to make sure we catch
     # errors arising from this.
 
-    octal_digits = [0] * len(program)
-    octal_digits[0] = 1
+    # try to make some assumptions that might work for other inputs
+    no_B_C = original_registers[1] == original_registers[2] == 0
+    single_out = program[::2].count(5) == 1
+    loop_while_A = program[-2:] == [3, 0]
+    A_div_const = program[::2].count(0) == 1 and program[2*program[::2].index(0) + 1] < 4
+    if not (no_B_C and single_out and loop_while_A and A_div_const):
+        # slim chance of the solution working for this input
+        return part1, None
+    divisor = 2**program[2*program[::2].index(0) + 1]  # base for digits of A
+
+    digits = [0] * len(program)
+    digits[0] = 1
     i = 0
-    while i < len(octal_digits):
+    while i < len(digits):
         output = program[::-1][i]
         while True:
-            A = sum(value * 8**i for i, value in enumerate(octal_digits[: i + 1][::-1]))
-
-            B = (A % 8) ^ 3
-            C = A // 2**B
-            if (B ^ 5 ^ C) % 8 == output:
+            A = sum(value * divisor**i for i, value in enumerate(digits[: i+1][::-1]))
+            registers = [A, 0, 0]
+            outputs = []
+            execute_program(skip_jump=True)
+            if outputs[-1] == output:
                 # we have a hit, advance to next digit
                 i += 1
                 break
 
             # we missed, increment digits
-            octal_digits[i] += 1
+            digits[i] += 1
 
             # check if we've run out of digits, carry the one
             need_to_backtrack = False
-            while octal_digits[i] == 8:
+            while digits[i] == divisor:
                 need_to_backtrack = True
                 i -= 1
                 if i < 0:
-                    raise AssertionError('Ran out of digits during backtracking')
-                octal_digits[i] += 1
-                for j in range(i + 1, len(octal_digits)):
-                    octal_digits[j] = 0
+                    # no solution with this input and heuristic
+                    return part1, None
+
+                digits[i] += 1
+                for j in range(i + 1, len(digits)):
+                    digits[j] = 0
 
             if need_to_backtrack:
                 # reset digit pointer because we could've messed up earlier digits
                 i = 0
                 break
 
-    A = sum(value * 8**i for i, value in enumerate(octal_digits[::-1]))
+    A = sum(value * divisor**i for i, value in enumerate(digits[::-1]))
     part2 = A
-    return part2
+    return part1, part2
 
 
 if __name__ == "__main__":
     testinp = open('day17.testinp').read()
+    print(day17(testinp))
     testinp2 = open('day17.testinp2').read()
-    print(day17(testinp, only_part1=True)[0], day17(testinp2)[1])
+    print(day17(testinp2))
     inp = open('day17.inp').read()
-    print(day17(inp, only_part1=True)[0], day17_special(inp))
+    print(day17(inp))
