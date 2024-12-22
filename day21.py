@@ -1,5 +1,5 @@
-from collections import defaultdict
-from itertools import combinations
+from collections import defaultdict, Counter
+from itertools import combinations, product
 
 
 def day21(inp, part1=True):
@@ -29,12 +29,35 @@ def day21(inp, part1=True):
     door_transfer = get_transitions(door_map)
     robot_transfer = get_transitions(robot_map)
 
-    transfers = [door_transfer, robot_transfer, robot_transfer]#, robot_transfer]
+    if part1:
+        robot_transfer_count = 2
+    else:
+        robot_transfer_count = 25
+
+    # only keep relevant door transfers
+    final_door_transfer = {}
+    for code in codes:
+        for start_key, end_key in zip('A' + code, code):
+            final_door_transfer[start_key, end_key] = door_transfer[start_key, end_key]
+    door_transfer = final_door_transfer
+
     result = 0
     for code in codes:
-        path = find_path(code, transfers)
-        complexity = int(code.rstrip('A')) * len(path)
-        result += complexity
+        # for each code generate all possible binary path choices
+        lowest_complexity = float('inf')
+        for door_transfer_values in product(*door_transfer.values()):
+            door_transfer_now = dict(zip(door_transfer, door_transfer_values))
+            for robot_transfer_values in product(*robot_transfer.values()):
+                robot_transfer_now = dict(zip(robot_transfer, robot_transfer_values))
+
+                transfers = [door_transfer_now] + [robot_transfer_now] * robot_transfer_count
+
+                path_counts = find_path_counts(code, transfers)
+                path_length = sum(path_counts.values())  # fencepost minus implicit starting A
+                complexity = int(code.rstrip('A')) * path_length
+                if complexity < lowest_complexity:
+                    lowest_complexity = complexity
+        result += lowest_complexity
 
     return result
 
@@ -94,7 +117,7 @@ def get_transitions(coords):
     return dict(transfer)
 
 
-def find_path(code, transfers):
+def find_path_counts(code, transfers):
     """Generate a code through a series of keyboard transitions.
 
     Parameters
@@ -108,64 +131,28 @@ def find_path(code, transfers):
 
     Returns
     -------
-    str
-        The shortest path on the first keypad (corresponding to the last
-        transfer mapping).
+    collections.Counter
+        The path section frequencies on the first keypad (corresponding
+        to the last transfer mapping).
     """
-    targets = [code]
-    for transfer in transfers:
-        # filter targets for shortest transfer in this step
-        shortests = []
-        best_cost = float('inf')
-        for target in targets:
-            char = 'A'
-            cost = 0
-            for next_char in target:
-                cost += len(transfer.get((char, next_char), [''])[0]) + 1  # account for "A"
-            if cost > best_cost:
-                continue
-            if cost == best_cost:
-                # add this contender
-                shortests.append(target)
-            else:
-                # discard earlier winners
-                shortests = [target]
+    section_counts = Counter()
+    target = code
+    for section in zip('A' + code[:-1], code):
+        section_counts[section] += 1
+    for i, transfer in enumerate(transfers):
+        next_section_counts = Counter()
+        for section, multiplicity in section_counts.items():
+            # watch out for missing (thing, thing) pairs
+            subpath = transfer.get(section, '') + 'A'
+            for next_section in zip('A' + subpath, subpath):
+                next_section_counts[next_section] += multiplicity
+        section_counts = next_section_counts
 
-        targets = shortests
-
-        all_paths = []
-        for target in targets:
-            char = 'A'
-            paths = ['']
-            for next_char in target:
-                # watch out for missing (thing, thing) pairs
-                subpaths = transfer.get((char, next_char), [''])
-                paths = [
-                    path + subpath + 'A'
-                    for path in paths
-                    for subpath in subpaths
-                ]
-                char = next_char
-        
-            # # always keep all the shortest paths in each step
-            # shortest_new_length = min(len(s) for s in paths)
-            # old_length = float('inf') if not all_paths else len(all_paths[0])
-            # shortest_length = min(old_length, shortest_new_length)
-            # all_paths = [
-            #     path
-            #     for path in all_paths + paths
-            #     if len(path) == shortest_length
-            # ]
-            all_paths.extend(paths)
-        targets = all_paths
-    target = min(targets, key=len)
-
-    return target
+    return section_counts
 
 
 if __name__ == "__main__":
     testinp = open('day21.testinp').read()
-    print(day21(testinp))#, day21(testinp, part1=False))
+    print(day21(testinp), day21(testinp, part1=False))
     inp = open('day21.inp').read()
-    # not deterministic, run several times for minimum...
-    print(day21(inp))#, day21(inp, part1=False))
+    print(day21(inp), day21(inp, part1=False))
